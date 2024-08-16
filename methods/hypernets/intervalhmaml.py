@@ -281,7 +281,11 @@ class IntervalHMAML(HyperMAML):
         if radius is None:  # used in maml warmup
             weight.fast = weight - update_weight
         else:
-            weight.radius = torch.abs(radius) + self.eps
+            weight.radius = (
+                (torch.abs(radius) + self.eps)
+                if self.epoch > self.radius_eps_warmup_epochs
+                else torch.zeros_like(radius)
+            )
             weight.fast = weight - update_weight
 
     def _update_network_weights(
