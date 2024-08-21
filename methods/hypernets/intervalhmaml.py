@@ -155,11 +155,35 @@ class IntervalHyperNet(nn.Module):
         self.tail_radius = nn.Sequential(*tail_radius)
 
     def forward(self, x):
-        out = self.head(x)
-        out_mean = self.tail_mean(out)
-        out_radius = self.tail_radius(out)
-        return out_mean, out_radius
+        d = x.size(1)
+        l = logits.size(1)
+        embeddings_lower, embeddings_upper, logits, labels = torch.split(x, [d, d, l, l], dim=1)
+        epsilon = (embeddings_upper - embeddings_lower) / 2
+        embedding = (embeddings_upper + embeddings_lower) / 2
 
+        for layer in self.head:
+            if isinstance(layer, nn.Linear):
+                embedding = layer(embedding)
+ 
+                epsilon = F.linear(
+                    input=epsilon,
+                    weight=layer.parameters["weight"].abs(),
+                    bias = None
+                )
+ 
+                lower_boundary = embedding - epsilon
+                upper_boundary = embedding + epsilon
+ 
+            elif isinstance(layer, nn.ReLU):
+                lower_boundary = F.relu(lower_boundary)
+                upper_boundary = F.relu(upper_boundary)
+ 
+                embedding = (upper_boundary + lower_boundary)/2
+                epsilon = (upper_boundary - lower_boundary)/2
+ 
+            assert (lower_boundary <= upper_boundary).all(), "Lower bounds should be non greater than upper bounds!"
+ 
+        return embedding, epsilon
 
 class IntervalHMAML(HyperMAML):
 
@@ -378,7 +402,9 @@ class IntervalHMAML(HyperMAML):
                 logits = F.softmax(logits, dim=1)
 
             labels = support_data_labels.view(support_embeddings.shape[0], -1)
-            support_embeddings = torch.cat((support_embeddings, logits, labels), dim=1)
+
+            temp_radius = 0.01
+            support_embeddings = torch.cat((support_embeddings - temp_radius, support_embeddings + temp_radius, logits, labels), dim=1)
 
         for weight in self.parameters():
             weight.fast = None
