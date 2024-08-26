@@ -154,12 +154,10 @@ class IntervalHyperNet(nn.Module):
         self.tail_mean = nn.Sequential(*tail_mean)
         self.tail_radius = nn.Sequential(*tail_radius)
 
-    def forward(self, x):
-        d = x.size(1)
-        l = logits.size(1)
-        embeddings_lower, embeddings_upper, logits, labels = torch.split(x, [d, d, l, l], dim=1)
-        epsilon = (embeddings_upper - embeddings_lower) / 2
+    def forward(self, x, eps): #najlepiej żeby był jednym z argumentów
+        
         embedding = (embeddings_upper + embeddings_lower) / 2
+        embedding = embedding.flatten()
 
         for layer in self.head:
             if isinstance(layer, nn.Linear):
@@ -167,7 +165,7 @@ class IntervalHyperNet(nn.Module):
  
                 epsilon = F.linear(
                     input=epsilon,
-                    weight=layer.parameters["weight"].abs(),
+                    weight=layer.weight.abs(),
                     bias = None
                 )
  
@@ -252,7 +250,8 @@ class IntervalHMAML(HyperMAML):
 
                 support_embeddings_resh = support_embeddings.reshape(self.n_way, -1)
 
-                delta_params, params_radius = param_net(support_embeddings_resh)
+                temp_radius = torch.full_like(support_embeddings_resh, 0.01)
+                delta_params, params_radius = param_net(support_embeddings_resh, temp_radius)
                 bias_neurons_num = self.target_net_param_shapes[name][0] // self.n_way
 
                 if self.hn_adaptation_strategy == "increasing_alpha" and self.alpha < 1:
@@ -283,7 +282,8 @@ class IntervalHMAML(HyperMAML):
 
                 flattened_embeddings = support_embeddings.flatten()
 
-                delta_weight, radius = param_net(flattened_embeddings)
+                temp_radius = torch.full_like(flattened_embeddings, 0.01)
+                delta_weight, radius = param_net(flattened_embeddings, temp_radius)
 
                 if name in self.target_net_param_shapes.keys():
                     delta_weight = delta_weight.reshape(
@@ -403,8 +403,7 @@ class IntervalHMAML(HyperMAML):
 
             labels = support_data_labels.view(support_embeddings.shape[0], -1)
 
-            temp_radius = 0.01
-            support_embeddings = torch.cat((support_embeddings - temp_radius, support_embeddings + temp_radius, logits, labels), dim=1)
+            support_embeddings = torch.cat((support_embeddings, logits, labels), dim=1)
 
         for weight in self.parameters():
             weight.fast = None
