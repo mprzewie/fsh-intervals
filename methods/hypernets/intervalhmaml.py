@@ -154,10 +154,7 @@ class IntervalHyperNet(nn.Module):
         self.tail_mean = nn.Sequential(*tail_mean)
         self.tail_radius = nn.Sequential(*tail_radius)
 
-    def forward(self, x, eps): #najlepiej żeby był jednym z argumentów
-        
-        embedding = (embeddings_upper + embeddings_lower) / 2
-        embedding = embedding.flatten()
+    def forward(self, embedding, epsilon):
 
         for layer in self.head:
             if isinstance(layer, nn.Linear):
