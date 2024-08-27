@@ -145,14 +145,9 @@ class IntervalHyperNet(nn.Module):
                 head.append(nn.Linear(hn_hidden_size, hn_hidden_size))
                 head.append(nn.ReLU())
 
+        head.append(nn.Linear(hn_hidden_size, out_neurons))
+        
         self.head = nn.Sequential(*head)
-
-        # tails to equate weights with distributions
-        tail_mean = [nn.Linear(hn_hidden_size, out_neurons)]
-        tail_radius = [nn.Linear(hn_hidden_size, out_neurons)]
-
-        self.tail_mean = nn.Sequential(*tail_mean)
-        self.tail_radius = nn.Sequential(*tail_radius)
 
     def forward(self, embedding, epsilon):
 
