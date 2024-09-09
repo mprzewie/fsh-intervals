@@ -140,7 +140,7 @@ class BayesHMAML(HyperMAML):
                     self.n_way, -1
                 )
 
-                delta_params_mean, params_logvar = param_net(support_embeddings_resh, 0.000001)
+                delta_params_mean, params_logvar = param_net(support_embeddings_resh, 0.00000000001)
                 bias_neurons_num = self.target_net_param_shapes[name][0] // self.n_way
 
                 if self.hn_adaptation_strategy == 'increasing_alpha' and self.alpha < 1:
@@ -165,7 +165,7 @@ class BayesHMAML(HyperMAML):
 
                 flattened_embeddings = support_embeddings.flatten()
 
-                delta_mean, logvar = param_net(flattened_embeddings, 0.000001)
+                delta_mean, logvar = param_net(flattened_embeddings, 0.00000000001)
 
                 if name in self.target_net_param_shapes.keys():
                     delta_mean = delta_mean.reshape(self.target_net_param_shapes[name])
