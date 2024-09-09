@@ -28,18 +28,43 @@ class BHyperNet(nn.Module):
 
         self.head = nn.Sequential(*head)
 
-        # tails to equate weights with distributions
-        tail_mean = [nn.Linear(hn_hidden_size, out_neurons)]
-        tail_logvar = [nn.Linear(hn_hidden_size, out_neurons)]
+        tail = nn.Linear(hn_hidden_size, out_neurons)
+        self.tail = tail
 
-        self.tail_mean = nn.Sequential(*tail_mean)
-        self.tail_logvar = nn.Sequential(*tail_logvar)
+    def forward(self, embedding, epsilon):
+        epsilon = epsilon * F.softmax(self.epsilon_distribution)
 
-    def forward(self, x):
-        out = self.head(x)
-        out_mean = self.tail_mean(out)
-        out_logvar = self.tail_logvar(out)
-        return out_mean, out_logvar
+        for layer in self.head:
+            if isinstance(layer, nn.Linear):
+                embedding = layer(embedding)
+ 
+                epsilon = F.linear(
+                    input=epsilon,
+                    weight=layer.weight.abs(),
+                    bias = None
+                )
+ 
+                lower_boundary = embedding - epsilon
+                upper_boundary = embedding + epsilon
+ 
+            elif isinstance(layer, nn.ReLU):
+                lower_boundary = F.relu(lower_boundary)
+                upper_boundary = F.relu(upper_boundary)
+ 
+                embedding = (upper_boundary + lower_boundary)/2
+                epsilon = (upper_boundary - lower_boundary)/2
+ 
+            assert (lower_boundary <= upper_boundary).all(), "Lower bounds should be non greater than upper bounds!"
+ 
+        embedding = self.tail(embedding)
+ 
+        epsilon = F.linear(
+            input=epsilon,
+            weight=self.tail.weight.abs(),
+            bias = None
+        )
+
+        return embedding, epsilon
 
 
 class BayesHMAML(HyperMAML):
@@ -114,7 +139,7 @@ class BayesHMAML(HyperMAML):
                     self.n_way, -1
                 )
 
-                delta_params_mean, params_logvar = param_net(support_embeddings_resh)
+                delta_params_mean, params_logvar = param_net(support_embeddings_resh, 0.000001)
                 bias_neurons_num = self.target_net_param_shapes[name][0] // self.n_way
 
                 if self.hn_adaptation_strategy == 'increasing_alpha' and self.alpha < 1:
@@ -139,7 +164,7 @@ class BayesHMAML(HyperMAML):
 
                 flattened_embeddings = support_embeddings.flatten()
 
-                delta_mean, logvar = param_net(flattened_embeddings)
+                delta_mean, logvar = param_net(flattened_embeddings, 0.000001)
 
                 if name in self.target_net_param_shapes.keys():
                     delta_mean = delta_mean.reshape(self.target_net_param_shapes[name])
