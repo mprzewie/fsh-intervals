@@ -18,6 +18,7 @@ class BHyperNet(nn.Module):
         super(BHyperNet, self).__init__()
 
         self.hn_head_len = params.hn_head_len
+        self.epsilon_distribution = nn.Parameter(torch.rand(embedding_size))
 
         head = [nn.Linear(embedding_size, hn_hidden_size), nn.ReLU()]
 
