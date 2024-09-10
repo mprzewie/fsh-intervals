@@ -136,8 +136,9 @@ class IntervalHyperNet(nn.Module):
     ):
         super(IntervalHyperNet, self).__init__()
 
+        self.epsilon_distribution = nn.Parameter(torch.rand(embedding_size))
         self.hn_head_len = params.hn_head_len
-
+        
         head = [nn.Linear(embedding_size, hn_hidden_size), nn.ReLU()]
 
         if self.hn_head_len > 2:
@@ -145,11 +146,13 @@ class IntervalHyperNet(nn.Module):
                 head.append(nn.Linear(hn_hidden_size, hn_hidden_size))
                 head.append(nn.ReLU())
 
-        head.append(nn.Linear(hn_hidden_size, out_neurons))
-        
         self.head = nn.Sequential(*head)
 
+        tail = nn.Linear(hn_hidden_size, out_neurons)
+        self.tail = tail
+
     def forward(self, embedding, epsilon):
+        epsilon = epsilon * F.softmax(self.epsilon_distribution)
 
         for layer in self.head:
             if isinstance(layer, nn.Linear):
@@ -173,6 +176,14 @@ class IntervalHyperNet(nn.Module):
  
             assert (lower_boundary <= upper_boundary).all(), "Lower bounds should be non greater than upper bounds!"
  
+        embedding = self.tail(embedding)
+ 
+        epsilon = F.linear(
+            input=epsilon,
+            weight=self.tail.weight.abs(),
+            bias = None
+        )
+
         return embedding, epsilon
 
 class IntervalHMAML(HyperMAML):
