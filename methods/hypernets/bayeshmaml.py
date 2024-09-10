@@ -138,7 +138,7 @@ class BayesHMAML(HyperMAML):
                     self.n_way, -1
                 )
 
-                temp_radius = torch.full_like(support_embeddings_resh, 0.01)
+                temp_radius = torch.full_like(support_embeddings_resh, 0.00000000001)
                 delta_params_mean, params_logvar = param_net(support_embeddings_resh, temp_radius)
                 bias_neurons_num = self.target_net_param_shapes[name][0] // self.n_way
 
@@ -164,7 +164,7 @@ class BayesHMAML(HyperMAML):
 
                 flattened_embeddings = support_embeddings.flatten()
 
-                temp_radius = torch.full_like(support_embeddings_resh, 0.01)
+                temp_radius = torch.full_like(support_embeddings_resh, 0.00000000001)
                 delta_mean, logvar = param_net(flattened_embeddings, temp_radius)
 
                 if name in self.target_net_param_shapes.keys():
