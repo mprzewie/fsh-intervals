@@ -136,8 +136,8 @@ class IntervalHyperNet(nn.Module):
     ):
         super(IntervalHyperNet, self).__init__()
 
-        self.epsilon_distribution = nn.Parameter(torch.rand(embedding_size))
         self.hn_head_len = params.hn_head_len
+        self.epsilon_distribution = nn.Parameter(torch.rand(embedding_size))
 
         head = [nn.Linear(embedding_size, hn_hidden_size), nn.ReLU()]
 
@@ -146,10 +146,10 @@ class IntervalHyperNet(nn.Module):
                 head.append(nn.Linear(hn_hidden_size, hn_hidden_size))
                 head.append(nn.ReLU())
 
+        head.append(nn.Linear(hn_hidden_size, out_neurons))
+        
         self.head = nn.Sequential(*head)
 
-        tail = nn.Linear(hn_hidden_size, out_neurons)
-        self.tail = tail
 
     def forward(self, embedding, epsilon):
         epsilon = epsilon * F.softmax(self.epsilon_distribution)
@@ -253,7 +253,8 @@ class IntervalHMAML(HyperMAML):
 
                 support_embeddings_resh = support_embeddings.reshape(self.n_way, -1)
 
-                delta_params, params_radius = param_net(support_embeddings_resh, 0.00000000001)
+                temp_radius = torch.full_like(support_embeddings_resh, 0.01)
+                delta_params, params_radius = param_net(support_embeddings_resh, temp_radius)
                 bias_neurons_num = self.target_net_param_shapes[name][0] // self.n_way
 
                 if self.hn_adaptation_strategy == "increasing_alpha" and self.alpha < 1:
@@ -284,7 +285,8 @@ class IntervalHMAML(HyperMAML):
 
                 flattened_embeddings = support_embeddings.flatten()
 
-                delta_weight, radius = param_net(flattened_embeddings, 0.00000000001)
+                temp_radius = torch.full_like(flattened_embeddings, 0.01)
+                delta_weight, radius = param_net(flattened_embeddings, temp_radius)
 
                 if name in self.target_net_param_shapes.keys():
                     delta_weight = delta_weight.reshape(

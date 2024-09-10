@@ -18,8 +18,7 @@ class BHyperNet(nn.Module):
         super(BHyperNet, self).__init__()
 
         self.hn_head_len = params.hn_head_len
-        self.epsilon_distribution = nn.Parameter(torch.rand(embedding_size))
-
+        
         head = [nn.Linear(embedding_size, hn_hidden_size), nn.ReLU()]
 
         if self.hn_head_len > 2:
@@ -33,7 +32,6 @@ class BHyperNet(nn.Module):
         self.tail = tail
 
     def forward(self, embedding, epsilon):
-        epsilon = epsilon * F.softmax(self.epsilon_distribution)
 
         for layer in self.head:
             if isinstance(layer, nn.Linear):
@@ -56,7 +54,7 @@ class BHyperNet(nn.Module):
                 epsilon = (upper_boundary - lower_boundary)/2
  
             assert (lower_boundary <= upper_boundary).all(), "Lower bounds should be non greater than upper bounds!"
- 
+
         embedding = self.tail(embedding)
  
         epsilon = F.linear(
@@ -64,7 +62,7 @@ class BHyperNet(nn.Module):
             weight=self.tail.weight.abs(),
             bias = None
         )
-
+ 
         return embedding, epsilon
 
 
@@ -140,7 +138,8 @@ class BayesHMAML(HyperMAML):
                     self.n_way, -1
                 )
 
-                delta_params_mean, params_logvar = param_net(support_embeddings_resh, 0.00000000001)
+                temp_radius = torch.full_like(support_embeddings_resh, 0.01)
+                delta_params_mean, params_logvar = param_net(support_embeddings_resh, temp_radius)
                 bias_neurons_num = self.target_net_param_shapes[name][0] // self.n_way
 
                 if self.hn_adaptation_strategy == 'increasing_alpha' and self.alpha < 1:
@@ -165,7 +164,8 @@ class BayesHMAML(HyperMAML):
 
                 flattened_embeddings = support_embeddings.flatten()
 
-                delta_mean, logvar = param_net(flattened_embeddings, 0.00000000001)
+                temp_radius = torch.full_like(support_embeddings_resh, 0.01)
+                delta_mean, logvar = param_net(flattened_embeddings, temp_radius)
 
                 if name in self.target_net_param_shapes.keys():
                     delta_mean = delta_mean.reshape(self.target_net_param_shapes[name])
