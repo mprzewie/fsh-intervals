@@ -137,7 +137,7 @@ class IntervalHyperNet(nn.Module):
         super(IntervalHyperNet, self).__init__()
 
         self.hn_head_len = params.hn_head_len
-        self.epsilon_distribution = nn.Parameter(torch.rand(embedding_size))
+        #self.epsilon_distribution = nn.Parameter(torch.rand(embedding_size))
 
         head = [nn.Linear(embedding_size, hn_hidden_size), nn.ReLU()]
 
@@ -152,7 +152,7 @@ class IntervalHyperNet(nn.Module):
 
 
     def forward(self, embedding, epsilon):
-        epsilon = epsilon * F.softmax(self.epsilon_distribution)
+        #epsilon = epsilon * F.softmax(self.epsilon_distribution)
 
         for layer in self.head:
             if isinstance(layer, nn.Linear):
@@ -175,15 +175,7 @@ class IntervalHyperNet(nn.Module):
                 epsilon = (upper_boundary - lower_boundary)/2
  
             assert (lower_boundary <= upper_boundary).all(), "Lower bounds should be non greater than upper bounds!"
- 
-        embedding = self.tail(embedding)
- 
-        epsilon = F.linear(
-            input=epsilon,
-            weight=self.tail.weight.abs(),
-            bias = None
-        )
-
+            
         return embedding, epsilon
 
 class IntervalHMAML(HyperMAML):
@@ -253,7 +245,7 @@ class IntervalHMAML(HyperMAML):
 
                 support_embeddings_resh = support_embeddings.reshape(self.n_way, -1)
 
-                temp_radius = torch.full_like(support_embeddings_resh, 0.01)
+                temp_radius = torch.full_like(support_embeddings_resh, 0.00000000001)
                 delta_params, params_radius = param_net(support_embeddings_resh, temp_radius)
                 bias_neurons_num = self.target_net_param_shapes[name][0] // self.n_way
 
@@ -285,7 +277,7 @@ class IntervalHMAML(HyperMAML):
 
                 flattened_embeddings = support_embeddings.flatten()
 
-                temp_radius = torch.full_like(flattened_embeddings, 0.01)
+                temp_radius = torch.full_like(flattened_embeddings, 0.00000000001)
                 delta_weight, radius = param_net(flattened_embeddings, temp_radius)
 
                 if name in self.target_net_param_shapes.keys():
