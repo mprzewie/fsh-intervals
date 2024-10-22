@@ -193,6 +193,11 @@ class IntervalHMAML(HyperMAML):
         self.radius_eps_warmup_epochs = params.hm_radius_eps_warmup_epochs
         self.worst_case_loss_multiplier = params.hm_worst_case_loss_multiplier
 
+        self.hn_eps = torch.tensor(params.hn_eps)
+        self.hn_eps_pump_epochs = params.hn_eps_pump_epochs
+        self.hn_eps_pump_value = torch.tensor(params.hn_eps_pump_value)
+        self.hn_radius_eps_warmup_epochs = params.hn_radius_eps_warmup_epochs
+
     def _init_classifier(self):
         self.classifier = IntervalLinear_fw(self.feat_dim, self.n_way)
 
@@ -245,7 +250,7 @@ class IntervalHMAML(HyperMAML):
 
                 support_embeddings_resh = support_embeddings.reshape(self.n_way, -1)
 
-                temp_radius = torch.full_like(support_embeddings_resh, 0.0000001)
+                temp_radius = torch.full_like(support_embeddings_resh, self.hn_eps)
                 delta_params, params_radius = param_net(support_embeddings_resh, temp_radius)
                 bias_neurons_num = self.target_net_param_shapes[name][0] // self.n_way
 
@@ -277,7 +282,7 @@ class IntervalHMAML(HyperMAML):
 
                 flattened_embeddings = support_embeddings.flatten()
 
-                temp_radius = torch.full_like(flattened_embeddings, 0.0000001)
+                temp_radius = torch.full_like(flattened_embeddings, self.hn_eps)
                 delta_weight, radius = param_net(flattened_embeddings, temp_radius)
 
                 if name in self.target_net_param_shapes.keys():
@@ -621,6 +626,12 @@ class IntervalHMAML(HyperMAML):
             and self.epoch > self.radius_eps_warmup_epochs
         ):
             self.eps = self.eps + self.eps_pump_value
+
+        if (
+            self.epoch % self.hn_eps_pump_epochs == 0
+            and self.epoch > self.hn_radius_eps_warmup_epochs
+        ):
+            self.hn_eps = self.hn_eps + self.hn_eps_pump_value
 
         # train
         for i, (x, _) in enumerate(train_loader):
