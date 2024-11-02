@@ -144,4 +144,26 @@ def add_hn_args_to_parser(parser: ArgumentParser) -> ArgumentParser:
         help="Multiplier for worst case loss",
     )
 
+    interval_args.add_argument(
+        "--hn_eps", type=float, default=0, help="Epsilon for interval hypernet"
+    )
+    interval_args.add_argument(
+        "--hn_eps_pump_epochs",
+        type=int,
+        default=100,
+        help="Number of epochs between pumping epsilon in interval hypernet",
+    )
+    interval_args.add_argument(
+        "--hn_eps_pump_value",
+        type=float,
+        default=0.0001,
+        help="Value by which epsilon is pumped in interval hypernet",
+    )
+    interval_args.add_argument(
+        "--hn_radius_eps_warmup_epochs",
+        type=float,
+        default=100,
+        help="Number of epochs for warmup without eps pumping for interval hypernet",
+    )
+
     return parser
