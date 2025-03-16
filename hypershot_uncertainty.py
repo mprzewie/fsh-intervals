@@ -10,11 +10,15 @@ import seaborn as sns
 import torch
 from neptune.new.types import File
 
+from torch import nn
+
+from copy import deepcopy
+
 import configs
 from data.datamgr import SetDataManager
 from io_utils import model_dict, parse_args, setup_neptune
-from methods.hypernets.hypernet_kernel import HyperShot
-
+from methods.hypernets.intervalhmaml import IntervalHMAML
+from methods.hypernets.utils import set_from_param_dict
 # NOTE: This uncertainty experiment was created on the master branch.
 # But still we have to use it on other branches with different implementations of model architectures (and different set of parameters).
 # If it is necessary to use this on other branches but differences in code does not allow to merge master you can do the following:
@@ -32,7 +36,7 @@ def train_fs_params(params):
     return dict(n_way=params.train_n_way, n_support=params.n_shot, n_query=n_query)
 
 def create_model_instance(params):
-    return HyperShot(model_dict[params.model], params=params, **train_fs_params(params)).cuda()
+    return IntervalHMAML(model_dict[params.model], params=params, **train_fs_params(params)).cuda()
 
 def get_image_size(params):
     image_size = 224
@@ -81,6 +85,8 @@ def experiment(N):
     tmp = torch.load(model_path)
     model.load_state_dict(tmp['state'])
 
+    print(model.n_query)
+
     dataset = load_dataset(params)
 
     def take_next():
@@ -98,6 +104,9 @@ def experiment(N):
         x, y = take_next()
 
     ims = get_image_size(params) 
+    print(X.shape)
+    print(Y.shape)
+    model.n_query = 16
     bb = model.n_way*(model.n_support + model.n_query)
     bs = bb*ims*ims
     bn = int(torch.numel(X)/(bs*(X.size()[2])))
@@ -113,9 +122,9 @@ def experiment(N):
     s1, q1 = model.parse_feature(b, is_feature=False)
     sy1 = y[:, :model.n_support].cuda()
     qy1 = y[:, model.n_support:].cuda()
-    # s1 = torch.reshape(s1, (1, *s1.size()))
+    #s1 = torch.reshape(s1, (1, *s1.size()))
     # q1 = torch.reshape(q1, (1, *q1.size()))
-    # sy1 = torch.reshape(sy1, (1, *sy1.size()))
+    #sy1 = torch.reshape(sy1, (1, *sy1.size()))
     # qy1 = torch.reshape(qy1, (1, *qy1.size()))
 
     # Now we need to find the other pair that has class such that this class cannot be found in s1
@@ -175,10 +184,20 @@ def experiment(N):
     # S1 Q1
     R1 = [ [] for _ in range(model.n_way) ]
     q1 = q1.reshape(-1, q1.shape[-1])
-    classifier, _ = model.generate_target_net(s1)
-    rel = model.build_relations_features(support_feature=s1, feature_to_classify=q1)
+
+    print(s1)
+    print(sy1)
+    print(s1.shape)
+    print(sy1.shape)
+    #support_embeddings_s1 = model.feature(s1)
+    #print(support_embeddings_s1)
+
+    delta_params = model._get_list_of_delta_params(maml_warmup_used=False, support_embeddings=s1, support_data_labels=sy1)
+    model._update_network_weights(delta_params, s1, sy1)
+    classifier = deepcopy(model.classifier)
+    #rel = model.set_forward_loss(s1)#.build_relations_features(support_feature=s1, feature_to_classify=q1)
     for _ in range(N):
-        o = classifier(rel)[0].flatten()
+        o = classifier(q1)[0].flatten()
         sample = torch.nn.functional.softmax(o).clone().data.cpu().numpy()
         for i in range(model.n_way):
             R1[i].append(sample[i])
@@ -197,8 +216,8 @@ def experiment(N):
     R2 = [ [] for _ in range(model.n_way) ]
     q1p[0] = s1[0]
     q1p = q1p.reshape(-1, q1p.shape[-1])
-    classifier, _ = model.generate_target_net(s1)
-    rel = model.build_relations_features(support_feature=s1, feature_to_classify=q1p)
+    classifier = deepcopy(model.classifier)
+    rel = model.set_forward_loss(s1)#.build_relations_features(support_feature=s1, feature_to_classify=q1p)
     for _ in range(N):
         o = classifier(rel)[0].flatten()
         sample = torch.nn.functional.softmax(o).clone().data.cpu().numpy()
@@ -215,8 +234,8 @@ def experiment(N):
 
     R3 = [ [] for _ in range(model.n_way) ]
     q2 = q2.reshape(-1, q2.shape[-1])
-    classifier, _ = model.generate_target_net(s1)
-    rel = model.build_relations_features(support_feature=s1, feature_to_classify=q2)
+    classifier = deepcopy(model.classifier)
+    rel = model.set_forward_loss(s1)#.build_relations_features(support_feature=s1, feature_to_classify=q2)
     for _ in range(N):
         o = classifier(rel)[qy2_index].flatten()
         print(o.shape)

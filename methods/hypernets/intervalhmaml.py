@@ -403,6 +403,10 @@ class IntervalHMAML(HyperMAML):
 
             labels = support_data_labels.view(support_embeddings.shape[0], -1)
 
+            print(support_embeddings.shape)
+            print(logits.shape)
+            print(labels.shape)
+
             support_embeddings = torch.cat((support_embeddings, logits, labels), dim=1)
 
         for weight in self.parameters():
