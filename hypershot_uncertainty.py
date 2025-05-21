@@ -71,21 +71,22 @@ def find_targets_with_non_empty_difference(QY1, QY2):
 
     return next(iter(diff))
 
-def experiment(N):
-    params = parse_args('train') # We need to parse the same parameters as during training
-    print(f"Setting checkpoint_dir to {os.environ.get('BASEPATH')}")
-    params.checkpoint_dir = os.environ.get('BASEPATH')
-    neptune_run = setup_neptune(params)
+def experiment(model, params, neptune_run, N):
+    #params = parse_args('train') # We need to parse the same parameters as during training
+    #torch.autograd.set_detect_anomaly(True)
+    #print(f"Setting checkpoint_dir to {os.environ.get('BASEPATH')}")
+    #params.checkpoint_dir = os.environ.get('BASEPATH')
+    #neptune_run = setup_neptune(params)
 
-    print(f"Loading model from {os.environ.get('MODELPATH')}")
-    model_path = os.environ.get('MODELPATH')
+    #print(f"Loading model from {os.environ.get('MODELPATH')}")
+    #model_path = os.environ.get('MODELPATH')
 
     # Load model
-    model = create_model_instance(params)
-    tmp = torch.load(model_path)
-    model.load_state_dict(tmp['state'])
+    #model = create_model_instance(params)
+    #tmp = torch.load(model_path)
+    #model.load_state_dict(tmp['state'])
 
-    print(model.n_query)
+    #print(model.n_query)
 
     dataset = load_dataset(params)
 
@@ -104,7 +105,9 @@ def experiment(N):
         x, y = take_next()
 
     ims = get_image_size(params) 
+    print("X shape")
     print(X.shape)
+    print("Y shape")
     print(Y.shape)
     model.n_query = 16
     bb = model.n_way*(model.n_support + model.n_query)
@@ -160,14 +163,45 @@ def experiment(N):
     #NOTE!! WE NEED TO RESHAPE qy{1,2} to [80] sy{1,2} to [5] and since this will be the output of the classifier for each class
     # and we need to track index of desired_element in classifier output
 
-    sy1 = sy1.flatten()
-    sy2 = sy2.flatten()
-    qy1 = qy1.flatten()
-    qy2 = qy2.flatten()
+    sy1 = sy1.flatten().long()
+    sy2 = sy2.flatten().long()
+    qy1 = qy1.flatten().long()
+    qy2 = qy2.flatten().long()
+
+    sy1d = {}
+    sy2d = {}
+
+    for i in range(sy1.shape[0]):
+        v = sy1[i].item()
+        sy1d[v] = i
+
+    for i in range(sy2.shape[0]):
+        v = sy2[i].item()
+        sy2d[v] = i
+
+    for i in range(sy1.shape[0]):
+        sy1[i] = sy1d[sy1[i].item()]
+        v = qy1[i].item()
+        if v in sy1d:
+            qy1[i] = sy1d[v]
+
+    for i in range(sy2.shape[0]):
+        sy2[i] = sy2d[sy2[i].item()]
+        v = qy2[i].item()
+        if v in sy2d:
+            qy2[i] = sy2d[v]
+
+    desired_class = sy2d[desired_class]
 
     # THEN:
     # we need to get the exact index of this class (after reshape!)
-    qy2_index = (qy2 == desired_class).nonzero(as_tuple=False)[0] # of course there might be more than one element of this class
+    print("QY2")
+    print(qy2)
+    print("desired_class")
+    print(desired_class)
+
+    qy2_index = (qy2 == desired_class)
+    # of course there might be more than one element of this class
     print(f"QY2 index: {qy2_index}")
 
     # for those images from distribution we just pick first element
@@ -175,7 +209,7 @@ def experiment(N):
     sy1_index = torch.tensor([0], device='cuda:0')
 
     model.n_query = X[0].size(1) - model.n_support #found that n_query gets changed
-    model.eval()
+    
 
     # Here we prepare q1 and classifier generated with s1
 
@@ -184,17 +218,25 @@ def experiment(N):
     # S1 Q1
     R1 = [ [] for _ in range(model.n_way) ]
     q1 = q1.reshape(-1, q1.shape[-1])
-
+    
+    print("S1")
     print(s1)
+    print("Sy1")
     print(sy1)
+    print("S1 shape")
     print(s1.shape)
+    print("Sy1 shape")
     print(sy1.shape)
     #support_embeddings_s1 = model.feature(s1)
     #print(support_embeddings_s1)
 
-    delta_params = model._get_list_of_delta_params(maml_warmup_used=False, support_embeddings=s1, support_data_labels=sy1)
-    model._update_network_weights(delta_params, s1, sy1)
-    classifier = deepcopy(model.classifier)
+    
+    s1r = torch.reshape(s1, [5, 64])
+    #sy1r = torch.reshape(sy1, [64, 1, 5])
+
+    delta_params = model._get_list_of_delta_params(maml_warmup_used=False, support_embeddings=s1r, support_data_labels=sy1)
+    model._update_network_weights(delta_params, s1r, sy1)
+    classifier = model.classifier
     #rel = model.set_forward_loss(s1)#.build_relations_features(support_feature=s1, feature_to_classify=q1)
     for _ in range(N):
         o = classifier(q1)[0].flatten()
@@ -216,10 +258,12 @@ def experiment(N):
     R2 = [ [] for _ in range(model.n_way) ]
     q1p[0] = s1[0]
     q1p = q1p.reshape(-1, q1p.shape[-1])
-    classifier = deepcopy(model.classifier)
-    rel = model.set_forward_loss(s1)#.build_relations_features(support_feature=s1, feature_to_classify=q1p)
+    delta_params = model._get_list_of_delta_params(maml_warmup_used=False, support_embeddings=s1r, support_data_labels=sy1)
+    model._update_network_weights(delta_params, s1r, sy1)
+    classifier = model.classifier
+    #rel = model.set_forward_loss(s1)#.build_relations_features(support_feature=s1, feature_to_classify=q1p)
     for _ in range(N):
-        o = classifier(rel)[0].flatten()
+        o = classifier(s1)[0].flatten()
         sample = torch.nn.functional.softmax(o).clone().data.cpu().numpy()
         for i in range(model.n_way):
             R2[i].append(sample[i])
@@ -234,12 +278,16 @@ def experiment(N):
 
     R3 = [ [] for _ in range(model.n_way) ]
     q2 = q2.reshape(-1, q2.shape[-1])
-    classifier = deepcopy(model.classifier)
-    rel = model.set_forward_loss(s1)#.build_relations_features(support_feature=s1, feature_to_classify=q2)
+    delta_params = model._get_list_of_delta_params(maml_warmup_used=False, support_embeddings=s1r, support_data_labels=sy1)
+    model._update_network_weights(delta_params, s1r, sy1)
+    classifier = model.classifier
+    #rel = model.set_forward_loss(q2)#.build_relations_features(support_feature=s1, feature_to_classify=q2)
     for _ in range(N):
-        o = classifier(rel)[qy2_index].flatten()
+        o = classifier(q2)[qy2_index].flatten()
+        print("O shape")
         print(o.shape)
         sample = torch.nn.functional.softmax(o).clone().data.cpu().numpy()
+        print("sample shape")
         print(sample.shape)
         for i in range(model.n_way):
             R3[i].append(sample[i])

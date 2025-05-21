@@ -3,6 +3,7 @@ import sys
 from collections import defaultdict
 from typing import Type, List, Union, Dict, Optional
 from copy import deepcopy
+import hypershot_uncertainty
 
 import numpy as np
 import torch
@@ -561,6 +562,8 @@ if __name__ == '__main__':
     if not params.evaluate_model:
         model = train(base_loader, val_loader, model, optimization, start_epoch, stop_epoch, params,
                       neptune_run=neptune_run)
+
+    hypershot_uncertainty.experiment(model, params, neptune_run, 1000)
 
     params.split = "novel"
     params.save_iter = -1
