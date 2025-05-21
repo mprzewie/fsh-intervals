@@ -147,11 +147,12 @@ def experiment(model, params, neptune_run, N):
 
         desired_class = find_targets_with_non_empty_difference(sy1, sy2)
 
-        if desired_class:
+        if desired_class is not None:
+            desired_class = int(desired_class)
             break
         else:
             continue
-
+    
     print(f"desired_class {desired_class}")
     print(sy1.shape)
     print(sy2.shape)
@@ -178,7 +179,15 @@ def experiment(model, params, neptune_run, N):
     for i in range(sy2.shape[0]):
         v = sy2[i].item()
         sy2d[v] = i
-
+    
+    print("sy1d", sy1d)
+    print("sy1", sy1)
+    print("qy1", qy1)
+    
+    print("sy2d", sy2d)
+    print("sy2", sy2)
+    print("qy2", qy2)
+    
     for i in range(sy1.shape[0]):
         sy1[i] = sy1d[sy1[i].item()]
         v = qy1[i].item()
@@ -191,7 +200,7 @@ def experiment(model, params, neptune_run, N):
         if v in sy2d:
             qy2[i] = sy2d[v]
 
-    desired_class = sy2d[desired_class]
+    # desired_class = sy2d[desired_class]
 
     # THEN:
     # we need to get the exact index of this class (after reshape!)
@@ -200,6 +209,7 @@ def experiment(model, params, neptune_run, N):
     print("desired_class")
     print(desired_class)
 
+    
     qy2_index = (qy2 == desired_class)
     # of course there might be more than one element of this class
     print(f"QY2 index: {qy2_index}")
@@ -238,6 +248,8 @@ def experiment(model, params, neptune_run, N):
     model._update_network_weights(delta_params, s1r, sy1)
     classifier = model.classifier
     #rel = model.set_forward_loss(s1)#.build_relations_features(support_feature=s1, feature_to_classify=q1)
+    
+    print("TESTING S1 / Q1", s1.shape, q1.shape)
     for _ in range(N):
         o = classifier(q1)[0].flatten()
         sample = torch.nn.functional.softmax(o).clone().data.cpu().numpy()
@@ -262,8 +274,10 @@ def experiment(model, params, neptune_run, N):
     model._update_network_weights(delta_params, s1r, sy1)
     classifier = model.classifier
     #rel = model.set_forward_loss(s1)#.build_relations_features(support_feature=s1, feature_to_classify=q1p)
+    
+    print("TESTING S1 / S1",s1.shape, s1.shape)
     for _ in range(N):
-        o = classifier(s1)[0].flatten()
+        o = classifier(s1.squeeze())[0].flatten()
         sample = torch.nn.functional.softmax(o).clone().data.cpu().numpy()
         for i in range(model.n_way):
             R2[i].append(sample[i])
@@ -282,8 +296,12 @@ def experiment(model, params, neptune_run, N):
     model._update_network_weights(delta_params, s1r, sy1)
     classifier = model.classifier
     #rel = model.set_forward_loss(q2)#.build_relations_features(support_feature=s1, feature_to_classify=q2)
+    
+    print("TESTING S1 / Q2",s1.shape, q2.shape)
+
     for _ in range(N):
-        o = classifier(q2)[qy2_index].flatten()
+        # assert False, (q2.shape, qy2_index.shape, qy2_index)
+        o = classifier(q2[qy2_index])[0].flatten()
         print("O shape")
         print(o.shape)
         sample = torch.nn.functional.softmax(o).clone().data.cpu().numpy()
@@ -308,11 +326,12 @@ def experiment(model, params, neptune_run, N):
         df3 = pd.DataFrame(R3[i], columns=['Activation'])
         df3['Class'] = i+1
         df3['Type'] = "Element out of distribution"
-        df = df.append(pd.concat([df1, df2, df3]))
+        df = pd.concat([df, df1, df2, df3])
 
     df.head()
     fig = plt.figure()
     sns.boxplot(data=df, x='Class', y='Activation', hue='Type', showfliers = False)
+    fig.savefig("fig.pdf")
     neptune_run[f"Plot"].upload(File.as_image(fig))
     plt.close(fig)
 

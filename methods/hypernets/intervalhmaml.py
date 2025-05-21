@@ -107,20 +107,21 @@ class IntervalLinear_fw(
         self.bias.radius = None
 
     def forward(self, x):
+        # print("interval", x.shape)
         if (
             self.weight.fast is not None
             and self.bias.fast is not None
             and self.weight.radius is not None
             and self.bias.radius is not None
         ):
-            print("Self weight fast")
-            print(self.weight.fast)
-            print("Self bias fast")
-            print(self.bias.fast)
-            print("Self weight radius")
-            print(self.weight.radius)
-            print("Self bias radius")
-            print(self.bias.radius)
+            # print("Self weight fast")
+            # print(self.weight.fast)
+            # print("Self bias fast")
+            # print(self.bias.fast)
+            # print("Self weight radius")
+            # print(self.weight.radius)
+            # print("Self bias radius")
+            # print(self.bias.radius)
 
             out = interval_forward(
                 x,
@@ -412,12 +413,12 @@ class IntervalHMAML(HyperMAML):
 
             labels = support_data_labels.view(support_embeddings.shape[0], -1)
 
-            print("Support emb shape")
-            print(support_embeddings.shape)
-            print("Logits shape")
-            print(logits.shape)
-            print("Labels shape")
-            print(labels.shape)
+            # print("Support emb shape")
+            # print(support_embeddings.shape)
+            # print("Logits shape")
+            # print(logits.shape)
+            # print("Labels shape")
+            # print(labels.shape)
 
             support_embeddings = torch.cat((support_embeddings, logits, labels), dim=1)
 
